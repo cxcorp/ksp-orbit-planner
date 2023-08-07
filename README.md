@@ -5,6 +5,8 @@
 
 A 3D web tool for planning KSP orbits and satellite constellations.
 
+> ![](docs/proto.png)
+
 ## Licenses
 
 Code based on Babylon.js template from https://github.com/RaananW/babylonjs-webpack-es6 by Raanan Weber licensed under the Apache License 2.0 (Apache).
