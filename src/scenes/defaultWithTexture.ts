@@ -3,33 +3,142 @@ import { Scene } from "@babylonjs/core/scene";
 import { ArcRotateCamera } from "@babylonjs/core/Cameras/arcRotateCamera";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { CreateSphere } from "@babylonjs/core/Meshes/Builders/sphereBuilder";
-import { CreateGround } from "@babylonjs/core/Meshes/Builders/groundBuilder";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
-import { CreateSceneClass } from "../createScene";
-
-// If you don't need the standard material you will still need to import it since the scene requires it.
-// import "@babylonjs/core/Materials/standardMaterial";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture";
-
-import grassTextureUrl from "../../assets/grass.jpg";
-import { DirectionalLight } from "@babylonjs/core/Lights/directionalLight";
-import { ShadowGenerator } from "@babylonjs/core/Lights/Shadows/shadowGenerator";
-
 import "@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent";
+import {
+    Color3,
+    CreateBox,
+    CreateLines,
+    CreatePlane,
+    CubeTexture,
+    HemisphericLight,
+    TransformNode,
+} from "@babylonjs/core";
+import { map, triangleWave } from "./util";
 
-export class DefaultSceneWithTexture implements CreateSceneClass {
+type CelestialObject = "mun";
+
+type km = number;
+
+interface CelestialObjectInfo {
+    name: CelestialObject;
+    displayName: string;
+    radius: km;
+    sphereOfInfluence: km;
+    textures: {
+        diffuse: () => Promise<string>;
+        specular: () => Promise<string>;
+    };
+}
+
+const KM_TO_M = 1000;
+
+const celestialObjects: Record<CelestialObject, CelestialObjectInfo> = {
+    mun: {
+        name: "mun",
+        displayName: "Mun",
+        radius: 10,
+        sphereOfInfluence: 2429559.1 / KM_TO_M,
+        textures: {
+            diffuse: () =>
+                import("../../assets/mun_diffuse.png").then((m) => m.default),
+            specular: () =>
+                import("../../assets/mun_specular.png").then((m) => m.default),
+        },
+    },
+};
+
+const makeCelestialObjectBodyMaterial = async (
+    { name, textures }: CelestialObjectInfo,
+    scene: Scene
+) => {
+    const material = new StandardMaterial(`${name}_surface`, scene);
+    material.diffuseTexture = new Texture(await textures.diffuse(), scene);
+    material.specularTexture = new Texture(await textures.specular(), scene);
+    return material;
+};
+
+const makeCelestialObjectBody = async (
+    { radius, name }: CelestialObjectInfo,
+    scene: Scene
+) => {
+    const diameter = radius * 2;
+    const celestialBody = CreateSphere(
+        `${name}_body`,
+        { diameter, segments: 256, updatable: true },
+        scene
+    );
+    // transform relative to the center of the sphere
+    celestialBody.setPivotPoint(new Vector3(0, diameter / 2, 0));
+    return celestialBody;
+};
+
+const makeCelestialObject = async (info: CelestialObjectInfo, scene: Scene) => {
+    const celestialBody = await makeCelestialObjectBody(info, scene);
+    celestialBody.material = await makeCelestialObjectBodyMaterial(info, scene);
+    return celestialBody;
+};
+
+const DEG_TO_RAD = Math.PI / 180.0;
+
+class OrbitalPlane extends TransformNode {
+    constructor(
+        name: string,
+        scene: Scene,
+        inclination = 0,
+        ascendingNodeLongitude = 0
+    ) {
+        super(name, scene);
+
+        this.inclination = inclination;
+        this.ascendingNodeLongitude = ascendingNodeLongitude;
+    }
+
+    /**
+     * The orbital inclination in degrees.
+     */
+    get inclination(): number {
+        return this.rotation.x / DEG_TO_RAD;
+    }
+    set inclination(value: number) {
+        this.rotation.x = value * DEG_TO_RAD;
+    }
+
+    get ascendingNodeLongitude() {
+        return this.rotation.z / DEG_TO_RAD;
+    }
+    set ascendingNodeLongitude(value: number) {
+        this.rotation.z = value * DEG_TO_RAD;
+    }
+}
+
+const addSkybox = (size: km, scene: Scene) => {
+    const skybox = CreateBox("skybox", { size }, scene);
+    const skyboxMaterial = new StandardMaterial("skybox", scene);
+    skyboxMaterial.backFaceCulling = false;
+    skyboxMaterial.reflectionTexture = new CubeTexture(
+        "/img/deepstarmap/map",
+        scene,
+        ["_px.png", "_py.png", "_pz.png", "_nx.png", "_ny.png", "_nz.png"]
+    );
+    skyboxMaterial.reflectionTexture.coordinatesMode = Texture.SKYBOX_MODE;
+    skyboxMaterial.diffuseColor = new Color3(0, 0, 0);
+    skyboxMaterial.specularColor = new Color3(0, 0, 0);
+    skybox.material = skyboxMaterial;
+};
+
+export class DefaultSceneWithTexture {
     createScene = async (
         engine: Engine,
         canvas: HTMLCanvasElement
     ): Promise<Scene> => {
-        // This creates a basic Babylon Scene object (non-mesh)
         const scene = new Scene(engine);
 
         void Promise.all([
             import("@babylonjs/core/Debug/debugLayer"),
             import("@babylonjs/inspector"),
-        ]).then((_values) => {
-            console.log(_values);
+        ]).then(() => {
             scene.debugLayer.show({
                 handleResize: true,
                 overlay: true,
@@ -37,70 +146,142 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
             });
         });
 
-        // This creates and positions a free camera (non-mesh)
         const camera = new ArcRotateCamera(
             "my first camera",
             0,
             Math.PI / 3,
-            10,
+            100,
             new Vector3(0, 0, 0),
             scene
         );
 
-        // This targets the camera to scene origin
         camera.setTarget(Vector3.Zero());
-
+        camera.allowUpsideDown = false;
+        camera.inertia = 0;
+        const CAMERA_MAX_Z = 10_000_000;
+        camera.maxZ = CAMERA_MAX_Z;
         // This attaches the camera to the canvas
         camera.attachControl(canvas, true);
 
-        // This creates a light, aiming 0,1,0 - to the sky (non-mesh)
-        // const light = new HemisphericLight(
-        //     "light",
-        //     new Vector3(0, 1, 0),
-        //     scene
-        // );
-
-        // // Default intensity is 1. Let's dim the light a small amount
-        // light.intensity = 0.7;
-
-        // Our built-in 'sphere' shape.
-        const sphere = CreateSphere(
-            "sphere",
-            { diameter: 2, segments: 32 },
+        const celestialName = "mun";
+        const celestialInfo = celestialObjects[celestialName];
+        const celestialPlane = new TransformNode(
+            `${celestialName}_celestial_plane`,
             scene
         );
+        const celestialBody = await makeCelestialObject(celestialInfo, scene);
+        celestialBody.parent = celestialPlane;
 
-        // Move the sphere upward 1/2 its height
-        sphere.position.y = 1;
+        // camera.setTarget(celestialBody);
+        camera.lowerRadiusLimit = celestialInfo.radius + 5;
+        camera.upperRadiusLimit = celestialInfo.sphereOfInfluence * 1.2;
+        camera.radius = celestialInfo.sphereOfInfluence / 2;
+        camera.wheelDeltaPercentage = 0.05;
 
-        // Our built-in 'ground' shape.
-        const ground = CreateGround(
-            "ground",
-            { width: 6, height: 6 },
-            scene
-        );
-
-        // Load a texture to be used as the ground material
-        const groundMaterial = new StandardMaterial("ground material", scene);
-        groundMaterial.diffuseTexture = new Texture(grassTextureUrl, scene);
-
-        ground.material = groundMaterial;
-        ground.receiveShadows = true;
-
-        const light = new DirectionalLight(
+        const light = new HemisphericLight(
             "light",
-            new Vector3(0, -1, 1),
+            new Vector3(1, 0, 0),
             scene
         );
-        light.intensity = 0.5;
-        light.position.y = 10;
+        light.intensity = 0.7;
 
-        const shadowGenerator = new ShadowGenerator(512, light)
-        shadowGenerator.useBlurExponentialShadowMap = true;
-        shadowGenerator.blurScale = 2;
-        shadowGenerator.setDarkness(0.2);
+        const skybox = CreateBox("skybox", { size: 7_000_000 }, scene);
+        const skyboxMaterial = new StandardMaterial("skybox", scene);
+        skyboxMaterial.backFaceCulling = false;
+        skyboxMaterial.reflectionTexture = new CubeTexture(
+            "/img/deepstarmap/map",
+            scene,
+            ["_px.png", "_py.png", "_pz.png", "_nx.png", "_ny.png", "_nz.png"]
+        );
+        skyboxMaterial.reflectionTexture.coordinatesMode = Texture.SKYBOX_MODE;
+        skyboxMaterial.diffuseColor = new Color3(0, 0, 0);
+        skyboxMaterial.specularColor = new Color3(0, 0, 0);
+        skybox.material = skyboxMaterial;
 
-        shadowGenerator.getShadowMap()!.renderList!.push(sphere);
+        {
+            const orbitalPlane = new OrbitalPlane("orbit1", scene, 45, 0);
+
+            const orbitalRadius = (
+                angleRad: number,
+                apoapsis: number,
+                periapsis: number
+            ) =>
+                2 *
+                ((apoapsis * periapsis) /
+                    (apoapsis +
+                        periapsis -
+                        (apoapsis - periapsis) * Math.cos(angleRad)));
+
+            /**
+             *
+             * @param r Radius
+             * @param phi φ
+             * @param theta θ
+             * @returns
+             */
+            const sphericalCoordsToCartesian = (
+                r: number,
+                phi: number,
+                theta: number
+            ): Vector3 => {
+                const x = r * Math.cos(phi) * Math.sin(theta);
+                const y = r * Math.sin(phi) * Math.sin(theta);
+                const z = r * Math.cos(theta);
+                return new Vector3(x, y, z);
+            };
+
+            const makePoint = (
+                angleDeg: number,
+                apoapsis: number,
+                periapsis: number
+            ): Vector3 => {
+                const angleRad = (angleDeg * Math.PI) / 180;
+                const r = orbitalRadius(angleRad, apoapsis, periapsis);
+                const phi = 0;
+                const theta = angleRad;
+                return sphericalCoordsToCartesian(r, phi, theta);
+            };
+
+            // draw thing
+            const apoapsis = 30;
+            const periapsis = 100;
+            const points: Vector3[] = [];
+
+            for (let deg = 0; deg < 360; ) {
+                points.push(makePoint(deg, apoapsis, periapsis));
+
+                // render a vertex at 0.25 degree intervals near the apoapsis and periapsis (semi-major axes),
+                // and at 0.5 degree intervals near the semi-minor axes since that's squished out
+                const degreeIncrement = map(triangleWave(deg), 0, 90, 0.25, 5);
+                deg += degreeIncrement;
+            }
+            // close arc
+            points.push(points[0].clone());
+            const arcLine = CreateLines("orbit", { points: points }, scene);
+
+            const orbitalDebugPlane = CreatePlane(
+                "orbit_debug_plane",
+                {
+                    width: 150,
+                    height: 150,
+                },
+                scene
+            );
+            const debugPlaneMaterial = new StandardMaterial(
+                "debug_plane",
+                scene
+            );
+            debugPlaneMaterial.diffuseColor = new Color3(0, 30, 200);
+            debugPlaneMaterial.backFaceCulling = true;
+            debugPlaneMaterial.alpha = 0.2;
+            orbitalDebugPlane.material = debugPlaneMaterial;
+
+            orbitalDebugPlane.rotation.x = 90 * DEG_TO_RAD;
+            orbitalDebugPlane.parent = orbitalPlane;
+            arcLine.parent = orbitalPlane;
+        }
+
+        addSkybox(Math.hypot(CAMERA_MAX_Z, CAMERA_MAX_Z) - 1, scene);
 
         return scene;
     };
