@@ -7,6 +7,10 @@ A 3D web tool for planning KSP orbits and satellite constellations.
 
 > ![](docs/proto.png)
 
+## Orbital mechanics notes
+
+- [docs/Orbital mechanics theory notes.pdf](docs/Orbital%20mechanics%20theory%20notes.pdf)
+
 ## Licenses
 
 Code based on Babylon.js template from https://github.com/RaananW/babylonjs-webpack-es6 by Raanan Weber licensed under the Apache License 2.0 (Apache).
