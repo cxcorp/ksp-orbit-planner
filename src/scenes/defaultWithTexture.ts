@@ -9,13 +9,16 @@ import "@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent";
 import {
     Color3,
     CreateBox,
-    CreateLines,
     CreatePlane,
     CubeTexture,
     HemisphericLight,
+    type Mesh,
     TransformNode,
 } from "@babylonjs/core";
-import { map, triangleWave } from "./util";
+import { ToRadians } from "../utils/trigonometry";
+import { OrbitalEllipse } from "../objects/OrbitalEllipse";
+import { OrbitalPlane } from "../objects/OrbitalPlane";
+import { AdvancedDynamicTexture, Rectangle, TextBlock } from "@babylonjs/gui";
 
 type CelestialObject = "mun";
 
@@ -79,39 +82,6 @@ const makeCelestialObject = async (info: CelestialObjectInfo, scene: Scene) => {
     celestialBody.material = await makeCelestialObjectBodyMaterial(info, scene);
     return celestialBody;
 };
-
-const DEG_TO_RAD = Math.PI / 180.0;
-
-class OrbitalPlane extends TransformNode {
-    constructor(
-        name: string,
-        scene: Scene,
-        inclination = 0,
-        ascendingNodeLongitude = 0
-    ) {
-        super(name, scene);
-
-        this.inclination = inclination;
-        this.ascendingNodeLongitude = ascendingNodeLongitude;
-    }
-
-    /**
-     * The orbital inclination in degrees.
-     */
-    get inclination(): number {
-        return this.rotation.x / DEG_TO_RAD;
-    }
-    set inclination(value: number) {
-        this.rotation.x = value * DEG_TO_RAD;
-    }
-
-    get ascendingNodeLongitude() {
-        return this.rotation.z / DEG_TO_RAD;
-    }
-    set ascendingNodeLongitude(value: number) {
-        this.rotation.z = value * DEG_TO_RAD;
-    }
-}
 
 const addSkybox = (size: km, scene: Scene) => {
     const skybox = CreateBox("skybox", { size }, scene);
@@ -199,68 +169,17 @@ export class DefaultSceneWithTexture {
         skybox.material = skyboxMaterial;
 
         {
-            const orbitalPlane = new OrbitalPlane("orbit1", scene, 45, 0);
-
-            const orbitalRadius = (
-                angleRad: number,
-                apoapsis: number,
-                periapsis: number
-            ) =>
-                2 *
-                ((apoapsis * periapsis) /
-                    (apoapsis +
-                        periapsis -
-                        (apoapsis - periapsis) * Math.cos(angleRad)));
-
-            /**
-             *
-             * @param r Radius
-             * @param phi φ
-             * @param theta θ
-             * @returns
-             */
-            const sphericalCoordsToCartesian = (
-                r: number,
-                phi: number,
-                theta: number
-            ): Vector3 => {
-                const x = r * Math.cos(phi) * Math.sin(theta);
-                const y = r * Math.sin(phi) * Math.sin(theta);
-                const z = r * Math.cos(theta);
-                return new Vector3(x, y, z);
-            };
-
-            const makePoint = (
-                angleDeg: number,
-                apoapsis: number,
-                periapsis: number
-            ): Vector3 => {
-                const angleRad = (angleDeg * Math.PI) / 180;
-                const r = orbitalRadius(angleRad, apoapsis, periapsis);
-                const phi = 0;
-                const theta = angleRad;
-                return sphericalCoordsToCartesian(r, phi, theta);
-            };
-
-            // draw thing
-            const apoapsis = 30;
-            const periapsis = 100;
-            const points: Vector3[] = [];
-
-            for (let deg = 0; deg < 360; ) {
-                points.push(makePoint(deg, apoapsis, periapsis));
-
-                // render a vertex at 0.25 degree intervals near the apoapsis and periapsis (semi-major axes),
-                // and at 0.5 degree intervals near the semi-minor axes since that's squished out
-                const degreeIncrement = map(triangleWave(deg), 0, 90, 0.25, 5);
-                deg += degreeIncrement;
-            }
-            // close arc
-            points.push(points[0].clone());
-            const arcLine = CreateLines("orbit", { points: points }, scene);
-
+            const orbitalPlane = new OrbitalPlane(`orbit1`, 45, 0, scene);
+            const orbit = new OrbitalEllipse(
+                `orbit1__orbit`,
+                300,
+                30,
+                { steps: 360 / 2 },
+                scene
+            );
+            orbit.parent = orbitalPlane;
             const orbitalDebugPlane = CreatePlane(
-                "orbit_debug_plane",
+                "orbit1__debug_plane",
                 {
                     width: 150,
                     height: 150,
@@ -276,9 +195,33 @@ export class DefaultSceneWithTexture {
             debugPlaneMaterial.alpha = 0.2;
             orbitalDebugPlane.material = debugPlaneMaterial;
 
-            orbitalDebugPlane.rotation.x = 90 * DEG_TO_RAD;
+            orbitalDebugPlane.rotation.x = ToRadians(90);
             orbitalDebugPlane.parent = orbitalPlane;
-            arcLine.parent = orbitalPlane;
+
+            const ui = AdvancedDynamicTexture.CreateFullscreenUI("ui");
+
+            const makeTextBlockOn = (text: string, mesh: Mesh) => {
+                const rect = new Rectangle();
+                rect.width = "12px";
+                rect.height = "12px";
+                rect.cornerRadius = 1;
+                rect.background = "blue";
+                rect.color = "transparent";
+
+                const label = new TextBlock();
+                label.text = text;
+                label.color = "#fff";
+                label.fontFamily = "Arial";
+                label.fontSizeInPixels = 9;
+                rect.addControl(label);
+
+                ui.addControl(rect);
+                rect.linkWithMesh(mesh);
+                rect.linkOffsetYInPixels = 12 / 2;
+            };
+
+            makeTextBlockOn("Pe", orbit.periapsisMarker);
+            makeTextBlockOn("Ap", orbit.apoapsisMarker);
         }
 
         addSkybox(Math.hypot(CAMERA_MAX_Z, CAMERA_MAX_Z) - 1, scene);

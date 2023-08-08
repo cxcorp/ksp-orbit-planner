@@ -6,6 +6,7 @@
     "dependencies": {
         "@babylonjs/core": "^6.0.0",
         "@babylonjs/gui-editor": "^6.0.0",
+        "@babylonjs/gui": "^6.0.0",
         "@babylonjs/havok": "^1.0.0",
         "@babylonjs/inspector": "^6.0.0",
         "@babylonjs/loaders": "^6.0.0",
