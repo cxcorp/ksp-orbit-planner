@@ -41,7 +41,7 @@ const celestialObjects: Record<CelestialObject, CelestialObjectInfo> = {
     mun: {
         name: "mun",
         displayName: "Mun",
-        radius: 10,
+        radius: 200,
         sphereOfInfluence: 2429559.1 / KM_TO_M,
         textures: {
             diffuse: () =>
@@ -143,6 +143,7 @@ export class DefaultSceneWithTexture {
         celestialBody.parent = celestialPlane;
 
         // camera.setTarget(celestialBody);
+        camera.radius = celestialInfo.radius * 1.2;
         camera.lowerRadiusLimit = celestialInfo.radius + 5;
         camera.upperRadiusLimit = celestialInfo.sphereOfInfluence * 1.2;
         camera.radius = celestialInfo.sphereOfInfluence / 2;
