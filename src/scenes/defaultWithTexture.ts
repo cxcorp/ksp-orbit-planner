@@ -142,42 +142,6 @@ export class DefaultSceneWithTexture {
         skyboxMaterial.specularColor = new Color3(0, 0, 0);
         skybox.material = skyboxMaterial;
 
-        // if (false) {
-        //     const orbitalPlane = new OrbitalPlane(`orbit1`, 45, 0, scene);
-        //     const orbit = new OrbitalEllipse(
-        //         `orbit1__orbit`,
-        //         300,
-        //         30,
-        //         { steps: 360 / 2 },
-        //         scene
-        //     );
-        //     orbit.parent = orbitalPlane;
-        //     const orbitalDebugPlane = CreatePlane(
-        //         "orbit1__debug_plane",
-        //         {
-        //             width: 150,
-        //             height: 150,
-        //         },
-        //         scene
-        //     );
-        //     const debugPlaneMaterial = new StandardMaterial(
-        //         "debug_plane",
-        //         scene
-        //     );
-        //     debugPlaneMaterial.diffuseColor = new Color3(0, 30, 200);
-        //     debugPlaneMaterial.backFaceCulling = true;
-        //     debugPlaneMaterial.alpha = 0.2;
-        //     orbitalDebugPlane.material = debugPlaneMaterial;
-
-        //     orbitalDebugPlane.rotation.x = ToRadians(90);
-        //     orbitalDebugPlane.parent = orbitalPlane;
-
-        //     const ui = AdvancedDynamicTexture.CreateFullscreenUI("ui");
-
-        //     makeTextBlockOn("Pe", orbit.periapsisMarker);
-        //     makeTextBlockOn("Ap", orbit.apoapsisMarker);
-        // }
-
         const ui = AdvancedDynamicTexture.CreateFullscreenUI(
             "ui",
             true,
