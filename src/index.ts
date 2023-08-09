@@ -2,6 +2,7 @@ import { Engine } from "@babylonjs/core/Engines/engine";
 import { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine";
 import sceneModule from "./scenes/defaultWithTexture";
 import "@babylonjs/core/Engines/WebGPU/Extensions/engine.uniformBuffer";
+import { SceneOptimizer, SceneOptimizerOptions } from "@babylonjs/core";
 
 export const babylonInit = async (): Promise<void> => {
     // Get the canvas element
@@ -23,6 +24,10 @@ export const babylonInit = async (): Promise<void> => {
 
     // Create the scene
     const scene = await sceneModule.createScene(engine, canvas);
+
+    const optimizationOptions = SceneOptimizerOptions.LowDegradationAllowed(30);
+    optimizationOptions.trackerDuration = 500;
+    SceneOptimizer.OptimizeAsync(scene, optimizationOptions);
 
     // JUST FOR TESTING. Not needed for anything else
     (window as any).scene = scene;
