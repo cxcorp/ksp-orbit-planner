@@ -19,38 +19,11 @@ import { ToRadians } from "../utils/trigonometry";
 import { OrbitalEllipse } from "../objects/OrbitalEllipse";
 import { OrbitalPlane } from "../objects/OrbitalPlane";
 import { AdvancedDynamicTexture, Rectangle, TextBlock } from "@babylonjs/gui";
-
-type CelestialObject = "mun";
-
-type km = number;
-
-interface CelestialObjectInfo {
-    name: CelestialObject;
-    displayName: string;
-    radius: km;
-    sphereOfInfluence: km;
-    textures: {
-        diffuse: () => Promise<string>;
-        specular: () => Promise<string>;
-    };
-}
-
-const KM_TO_M = 1000;
-
-const celestialObjects: Record<CelestialObject, CelestialObjectInfo> = {
-    mun: {
-        name: "mun",
-        displayName: "Mun",
-        radius: 200,
-        sphereOfInfluence: 2429559.1 / KM_TO_M,
-        textures: {
-            diffuse: () =>
-                import("../../assets/mun_diffuse.png").then((m) => m.default),
-            specular: () =>
-                import("../../assets/mun_specular.png").then((m) => m.default),
-        },
-    },
-};
+import {
+    CelestialObjectInfo,
+    celestialObjects,
+} from "../objects/CelestialObjects";
+import { fromKspApsis, type km } from "../utils/orbitalMath";
 
 const makeCelestialObjectBodyMaterial = async (
     { name, textures }: CelestialObjectInfo,
@@ -169,58 +142,69 @@ export class DefaultSceneWithTexture {
         skyboxMaterial.specularColor = new Color3(0, 0, 0);
         skybox.material = skyboxMaterial;
 
-        {
-            const orbitalPlane = new OrbitalPlane(`orbit1`, 45, 0, scene);
-            const orbit = new OrbitalEllipse(
-                `orbit1__orbit`,
-                300,
-                30,
-                { steps: 360 / 2 },
-                scene
-            );
-            orbit.parent = orbitalPlane;
-            const orbitalDebugPlane = CreatePlane(
-                "orbit1__debug_plane",
-                {
-                    width: 150,
-                    height: 150,
-                },
-                scene
-            );
-            const debugPlaneMaterial = new StandardMaterial(
-                "debug_plane",
-                scene
-            );
-            debugPlaneMaterial.diffuseColor = new Color3(0, 30, 200);
-            debugPlaneMaterial.backFaceCulling = true;
-            debugPlaneMaterial.alpha = 0.2;
-            orbitalDebugPlane.material = debugPlaneMaterial;
+        // if (false) {
+        //     const orbitalPlane = new OrbitalPlane(`orbit1`, 45, 0, scene);
+        //     const orbit = new OrbitalEllipse(
+        //         `orbit1__orbit`,
+        //         300,
+        //         30,
+        //         { steps: 360 / 2 },
+        //         scene
+        //     );
+        //     orbit.parent = orbitalPlane;
+        //     const orbitalDebugPlane = CreatePlane(
+        //         "orbit1__debug_plane",
+        //         {
+        //             width: 150,
+        //             height: 150,
+        //         },
+        //         scene
+        //     );
+        //     const debugPlaneMaterial = new StandardMaterial(
+        //         "debug_plane",
+        //         scene
+        //     );
+        //     debugPlaneMaterial.diffuseColor = new Color3(0, 30, 200);
+        //     debugPlaneMaterial.backFaceCulling = true;
+        //     debugPlaneMaterial.alpha = 0.2;
+        //     orbitalDebugPlane.material = debugPlaneMaterial;
 
-            orbitalDebugPlane.rotation.x = ToRadians(90);
-            orbitalDebugPlane.parent = orbitalPlane;
+        //     orbitalDebugPlane.rotation.x = ToRadians(90);
+        //     orbitalDebugPlane.parent = orbitalPlane;
 
-            const ui = AdvancedDynamicTexture.CreateFullscreenUI("ui");
+        //     const ui = AdvancedDynamicTexture.CreateFullscreenUI("ui");
 
-            const makeTextBlockOn = (text: string, mesh: Mesh) => {
-                const rect = new Rectangle();
-                rect.width = "12px";
-                rect.height = "12px";
-                rect.cornerRadius = 1;
-                rect.background = "blue";
-                rect.color = "transparent";
+        //     makeTextBlockOn("Pe", orbit.periapsisMarker);
+        //     makeTextBlockOn("Ap", orbit.apoapsisMarker);
+        // }
 
-                const label = new TextBlock();
-                label.text = text;
-                label.color = "#fff";
-                label.fontFamily = "Arial";
-                label.fontSizeInPixels = 9;
-                rect.addControl(label);
+        const ui = AdvancedDynamicTexture.CreateFullscreenUI(
+            "ui",
+            true,
+            scene,
+            Texture.BILINEAR_SAMPLINGMODE,
+            true
+        );
+        const makeTextBlockOn = (text: string, mesh: Mesh) => {
+            const rect = new Rectangle();
+            rect.width = "12px";
+            rect.height = "12px";
+            rect.cornerRadius = 1;
+            rect.background = "blue";
+            rect.color = "transparent";
 
-                ui.addControl(rect);
-                rect.linkWithMesh(mesh);
-                rect.linkOffsetYInPixels = 12 / 2;
-            };
+            const label = new TextBlock();
+            label.text = text;
+            label.color = "#fff";
+            label.fontFamily = "Arial";
+            label.fontSizeInPixels = 9;
+            rect.addControl(label);
 
+            ui.addControl(rect);
+            rect.linkWithMesh(mesh);
+            rect.linkOffsetYInPixels = 12 / 2;
+        };
+        for (const { orbit, plane } of makeOrbits(celestialInfo, scene)) {
             makeTextBlockOn("Pe", orbit.periapsisMarker);
             makeTextBlockOn("Ap", orbit.apoapsisMarker);
         }
@@ -230,5 +214,77 @@ export class DefaultSceneWithTexture {
         return scene;
     };
 }
+
+const makeOrbits = (celestial: CelestialObjectInfo, scene: Scene) => {
+    const orbits = getOrbits();
+
+    const output: Array<{ plane: OrbitalPlane; orbit: OrbitalEllipse }> = [];
+
+    for (const o of orbits) {
+        const plane = new OrbitalPlane(
+            `${o.id}_plane`,
+            o.inclination,
+            o.longitudeOfAN,
+            scene
+        );
+        const orbit = new OrbitalEllipse(
+            `${o.id}_orbit`,
+            fromKspApsis(o.apoapsis / 1000, celestial),
+            fromKspApsis(o.periapsis / 1000, celestial),
+            { steps: 180 },
+            scene
+        );
+        orbit.parent = plane;
+
+        output.push({ orbit, plane });
+    }
+
+    return output;
+};
+
+const getOrbits = () => [
+    {
+        id: "A1",
+        apoapsis: 301067.8,
+        // periapsis: 300074.6,
+        periapsis: 10 * 1000,
+        eccentricity: 0.00099,
+        inclination: 90.03778,
+        longitudeOfAN: 214.25741,
+        argPE: 115.27402,
+        trueAnomaly: -12.20135,
+    },
+    {
+        id: "A2",
+        apoapsis: 299113.1,
+        periapsis: 298332.3,
+        eccentricity: 0.00078,
+        inclination: 89.84439,
+        longitudeOfAN: 214.46113,
+        argPE: 95.54224,
+        trueAnomaly: -108.18228,
+    },
+    {
+        id: "B1",
+        apoapsis: 300107.3,
+        // periapsis: 300085.9,
+        periapsis: 50 * 1000,
+        eccentricity: 0.00002,
+        inclination: 126.32455,
+        longitudeOfAN: 124.25351,
+        argPE: 15.72386,
+        trueAnomaly: -111.48943,
+    },
+    {
+        id: "B2",
+        apoapsis: 300107.8,
+        periapsis: 300086.2,
+        eccentricity: 0.00002,
+        inclination: 126.32455,
+        longitudeOfAN: 124.25351,
+        argPE: 14.92775,
+        trueAnomaly: -106.98689,
+    },
+];
 
 export default new DefaultSceneWithTexture();

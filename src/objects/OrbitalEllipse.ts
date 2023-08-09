@@ -22,9 +22,12 @@ export class OrbitalEllipse extends TransformNode {
     readonly periapsisMarker: Mesh;
 
     private readonly meshOptions: OrbitalEllipseMeshOptions;
+    /** Apoapsis as measured from the center of the celestial object (a focal point of the ellipse) */
     private _apoapsis: number;
+    /** Periapsis as measured from the center of the celestial object (a focal point of the ellipse) */
     private _periapsis: number;
 
+    /** Apoapsis as measured from the center of the celestial object (a focal point of the ellipse) */
     get apoapsis(): number {
         return this._apoapsis;
     }
@@ -32,7 +35,7 @@ export class OrbitalEllipse extends TransformNode {
         this._apoapsis = value;
         this.onApoapsisChange.notifyObservers(this._apoapsis);
     }
-
+    /** Periapsis as measured from the center of the celestial object (a focal point of the ellipse) */
     get periapsis(): number {
         return this._periapsis;
     }
@@ -58,8 +61,9 @@ export class OrbitalEllipse extends TransformNode {
         this.meshOptions = meshOptions;
         const { orbit, start, halfway } = this.createMesh();
         this.mesh = orbit;
-        this.periapsisMarker = start;
-        this.apoapsisMarker = halfway;
+
+        this.periapsisMarker = halfway;
+        this.apoapsisMarker = start;
     }
 
     private createMesh() {
