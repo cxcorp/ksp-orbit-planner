@@ -9,13 +9,11 @@ import "@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent";
 import {
     Color3,
     CreateBox,
-    CreatePlane,
     CubeTexture,
     HemisphericLight,
     type Mesh,
     TransformNode,
 } from "@babylonjs/core";
-import { ToRadians } from "../utils/trigonometry";
 import { OrbitalEllipse } from "../objects/OrbitalEllipse";
 import { OrbitalPlane } from "../objects/OrbitalPlane";
 import { AdvancedDynamicTexture, Rectangle, TextBlock } from "@babylonjs/gui";
