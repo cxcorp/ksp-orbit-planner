@@ -4,24 +4,19 @@ import sceneModule from "./scenes/defaultWithTexture";
 import "@babylonjs/core/Engines/WebGPU/Extensions/engine.uniformBuffer";
 
 export const babylonInit = async (): Promise<void> => {
-    const engineType =
-        location.search.split("engine=")[1]?.split("&")[0] || "webgl";
     // Get the canvas element
     const canvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
     // Generate the BABYLON 3D engine
     let engine: Engine;
-    if (engineType === "webgpu") {
-        const webGPUSupported = await WebGPUEngine.IsSupportedAsync;
-        if (webGPUSupported) {
-            const webgpu = (engine = new WebGPUEngine(canvas, {
-                adaptToDeviceRatio: true,
-                antialias: true,
-            }));
-            await webgpu.initAsync();
-            engine = webgpu;
-        } else {
-            engine = new Engine(canvas, true);
-        }
+
+    const webGPUSupported = await WebGPUEngine.IsSupportedAsync;
+    if (webGPUSupported) {
+        const webgpu = (engine = new WebGPUEngine(canvas, {
+            adaptToDeviceRatio: true,
+            antialias: true,
+        }));
+        await webgpu.initAsync();
+        engine = webgpu;
     } else {
         engine = new Engine(canvas, true);
     }
