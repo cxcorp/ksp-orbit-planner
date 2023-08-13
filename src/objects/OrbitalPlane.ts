@@ -13,21 +13,29 @@ import { ToDegrees, ToRadians } from "../utils/trigonometry";
 export class OrbitalPlane extends TransformNode {
     private debugPlane: Mesh;
 
+    private _inclination = 0;
+    private _ascendingNodeLongitude = 0;
+
     /**
      * The orbital inclination in degrees.
      */
     get inclination(): number {
-        return ToDegrees(this.rotation.x);
+        return ToDegrees(this.rotation.z);
     }
     set inclination(value: number) {
-        this.rotation.x = ToRadians(value);
+        this._inclination = value;
+        this.applyRotation();
     }
 
     get ascendingNodeLongitude() {
-        return ToDegrees(this.rotation.z);
+        // This needs to be inverted. I think our spherical->cartesian conversion
+        // might be using the wrong coordinate or angle conventions. Anyways
+        // this seems to fix it without having to change any other axii.
+        return ToDegrees(-this.rotation.y);
     }
     set ascendingNodeLongitude(value: number) {
-        this.rotation.z = ToRadians(value);
+        this._ascendingNodeLongitude = value;
+        this.applyRotation();
     }
 
     get debugPlaneEnabled(): boolean {
@@ -57,6 +65,12 @@ export class OrbitalPlane extends TransformNode {
 
         this.debugPlane = this.makeDebugPlane();
         this.debugPlane.setEnabled(false);
+    }
+
+    private applyRotation() {
+        this.rotation.y = ToRadians(-this._ascendingNodeLongitude);
+        this.rotation.z = ToRadians(this._inclination);
+        this.rotation.x = 0;
     }
 
     private makeDebugPlane() {
