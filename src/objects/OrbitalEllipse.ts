@@ -7,8 +7,14 @@ import {
     Observable,
     TransformNode,
     Mesh,
+    IInspectable,
+    InspectableType,
 } from "@babylonjs/core";
-import { ToRadians, sphericalToCartesian } from "../utils/trigonometry";
+import {
+    ToDegrees,
+    ToRadians,
+    sphericalToCartesian,
+} from "../utils/trigonometry";
 import { orbitalRadius } from "../utils/orbitalMath";
 
 interface OrbitalEllipseMeshOptions {
@@ -33,6 +39,7 @@ export class OrbitalEllipse extends TransformNode {
     }
     set apoapsis(value: number) {
         this._apoapsis = value;
+
         this.onApoapsisChange.notifyObservers(this._apoapsis);
     }
     /** Periapsis as measured from the center of the celestial object (a focal point of the ellipse) */
@@ -44,30 +51,85 @@ export class OrbitalEllipse extends TransformNode {
         this.onPeriapsisChange.notifyObservers(this._periapsis);
     }
 
+    get argumentOfPeriapsis(): number {
+        return ToDegrees(this.rotation.y);
+    }
+    set argumentOfPeriapsis(valueDeg: number) {
+        this.rotation.y = ToRadians(valueDeg);
+    }
+
     onPeriapsisChange = new Observable<number>();
     onApoapsisChange = new Observable<number>();
+
+    inspectableCustomProperties: IInspectable[] = [
+        {
+            label: "Apoapsis",
+            propertyName: "apoapsis",
+            type: InspectableType.String,
+        },
+        {
+            label: "Periapsis",
+            propertyName: "periapsis",
+            type: InspectableType.String,
+        },
+        {
+            label: "Argument of periapsis",
+            propertyName: "argumentOfPeriapsis",
+            type: InspectableType.Slider,
+            min: 0,
+            max: 360,
+            step: 1,
+        },
+    ];
 
     constructor(
         name: string,
         apoapsis: number,
         periapsis: number,
+        argumentOfPeriapsis: number,
         meshOptions: OrbitalEllipseMeshOptions,
         scene: Scene
     ) {
         super(name, scene);
         this._apoapsis = apoapsis;
         this._periapsis = periapsis;
+        this.argumentOfPeriapsis = argumentOfPeriapsis;
 
         this.meshOptions = meshOptions;
-        const { orbit, start, halfway } = this.createMesh();
+        const orbit = this.createMesh();
         this.mesh = orbit;
 
-        this.periapsisMarker = halfway;
-        this.apoapsisMarker = start;
+        this.periapsisMarker = CreateSphere(
+            `${this.name}_orbit_periapsis`,
+            { diameter: 20 },
+            this.getScene()
+        );
+        this.periapsisMarker.parent = this;
+        this.periapsisMarker.position.z = -periapsis;
+
+        this.apoapsisMarker = CreateSphere(
+            `${this.name}_orbit_apoapsis`,
+            { diameter: 20 },
+            this.getScene()
+        );
+        this.apoapsisMarker.parent = this;
+        this.apoapsisMarker.position.z = apoapsis;
+    }
+
+    dispose(): void {
+        this.onApoapsisChange.clear();
+        this.onPeriapsisChange.clear();
+
+        this.apoapsisMarker.dispose();
+        this.periapsisMarker.dispose();
+
+        this.mesh.dispose();
+
+        super.dispose();
     }
 
     private createMesh() {
-        const { points, startPoint, halfwayPoint } = this.createMeshPoints();
+        const points = this.createMeshPoints();
 
         const orbit = CreateLines(
             `${this.name}_orbit_line`,
@@ -76,63 +138,21 @@ export class OrbitalEllipse extends TransformNode {
         );
         orbit.parent = this;
 
-        const start = CreateSphere(
-            `${this.name}_orbit_start`,
-            { diameter: 5 },
-            this.getScene()
-        );
-        start.parent = this;
-        start.position = startPoint;
-
-        const halfway = CreateSphere(
-            `${this.name}_orbit_halfway`,
-            { diameter: 1 },
-            this.getScene()
-        );
-        halfway.parent = this;
-        halfway.position = halfwayPoint;
-
-        return {
-            orbit,
-            start,
-            halfway,
-        };
+        return orbit;
     }
 
-    private createMeshPoints(): {
-        points: Vector3[];
-        startPoint: Vector3;
-        halfwayPoint: Vector3;
-    } {
+    private createMeshPoints(): Vector3[] {
         const increment = 360 / this.meshOptions.steps;
         const points: Vector3[] = [];
 
-        const zeroDegPoint: Vector3 = this.createOrbitPoint(0);
-        points.push(zeroDegPoint);
-
-        let deg = increment;
-        for (; deg < 180; deg += increment) {
-            points.push(this.createOrbitPoint(deg));
-        }
-
-        const halfwayPoint: Vector3 = this.createOrbitPoint(180);
-        points.push(halfwayPoint);
-        if (deg === 180) {
-            // just handled
-            deg += increment;
-        }
-        for (; deg < 360; deg += increment) {
+        for (let deg = 0; deg < 360; deg += increment) {
             points.push(this.createOrbitPoint(deg));
         }
 
         // close line
         points.push(points[0].clone());
 
-        return {
-            points,
-            startPoint: zeroDegPoint,
-            halfwayPoint: halfwayPoint,
-        };
+        return points;
     }
 
     private createOrbitPoint(angleDeg: number) {

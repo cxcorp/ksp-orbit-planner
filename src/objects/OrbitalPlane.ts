@@ -47,6 +47,22 @@ export class OrbitalPlane extends TransformNode {
 
     inspectableCustomProperties: IInspectable[] = [
         {
+            label: "Inclination",
+            propertyName: "inclination",
+            type: InspectableType.Slider,
+            min: 0,
+            max: 180,
+            step: 1,
+        },
+        {
+            label: "Longitude of AN",
+            propertyName: "ascendingNodeLongitude",
+            type: InspectableType.Slider,
+            min: 0,
+            max: 360,
+            step: 1,
+        },
+        {
             label: "Show debug plane",
             propertyName: "debugPlaneEnabled",
             type: InspectableType.Checkbox,
@@ -65,6 +81,11 @@ export class OrbitalPlane extends TransformNode {
 
         this.debugPlane = this.makeDebugPlane();
         this.debugPlane.setEnabled(false);
+    }
+
+    dispose() {
+        this.debugPlane.dispose();
+        super.dispose();
     }
 
     private applyRotation() {
