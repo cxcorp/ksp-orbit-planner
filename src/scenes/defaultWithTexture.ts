@@ -99,6 +99,7 @@ export class DefaultSceneWithTexture {
         camera.setTarget(Vector3.Zero());
         camera.allowUpsideDown = false;
         camera.inertia = 0;
+        camera.speed = 20;
         const CAMERA_MAX_Z = 10_000_000;
         camera.maxZ = CAMERA_MAX_Z;
         // This attaches the camera to the canvas
@@ -116,8 +117,8 @@ export class DefaultSceneWithTexture {
         // camera.setTarget(celestialBody);
         camera.radius = celestialInfo.radius * 1.2;
         camera.lowerRadiusLimit = celestialInfo.radius + 5;
-        camera.upperRadiusLimit = celestialInfo.sphereOfInfluence * 1.2;
-        camera.radius = celestialInfo.sphereOfInfluence / 2;
+        camera.upperRadiusLimit = celestialInfo.sphereOfInfluence * 3;
+        camera.radius = celestialInfo.sphereOfInfluence;
         camera.wheelDeltaPercentage = 0.05;
 
         const light = new HemisphericLight(
