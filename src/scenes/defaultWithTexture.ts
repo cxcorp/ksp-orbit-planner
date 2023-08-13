@@ -11,8 +11,16 @@ import {
     CreateBox,
     CubeTexture,
     HemisphericLight,
-    type Mesh,
+    Mesh,
     TransformNode,
+    GizmoManager,
+    Material,
+    CreateCylinder,
+    DirectionalLight,
+    UtilityLayerRenderer,
+    AxisDragGizmo,
+    Curve3,
+    MeshBuilder,
 } from "@babylonjs/core";
 import { OrbitalEllipse } from "../objects/OrbitalEllipse";
 import { OrbitalPlane } from "../objects/OrbitalPlane";
@@ -21,7 +29,13 @@ import {
     CelestialObjectInfo,
     celestialObjects,
 } from "../objects/CelestialObjects";
-import { fromKspApsis, type km } from "../utils/orbitalMath";
+import {
+    fromKspApsis,
+    getApoapsisAndPeriapsis,
+    type km,
+} from "../utils/orbitalMath";
+import { ToRadians, sphericalToCartesian } from "../utils/trigonometry";
+import { TEST_KSP_ORBITS, parseKspOrbit } from "../utils/ksp";
 
 const makeCelestialObjectBodyMaterial = async (
     { name, textures }: CelestialObjectInfo,
@@ -141,6 +155,8 @@ export class DefaultSceneWithTexture {
         skyboxMaterial.specularColor = new Color3(0, 0, 0);
         skybox.material = skyboxMaterial;
 
+        makeSphereOfInfluenceCircle(celestialInfo, scene);
+
         const ui = AdvancedDynamicTexture.CreateFullscreenUI(
             "ui",
             true,
@@ -167,87 +183,128 @@ export class DefaultSceneWithTexture {
             rect.linkWithMesh(mesh);
             rect.linkOffsetYInPixels = 12 / 2;
         };
-        for (const { orbit, plane } of makeOrbits(celestialInfo, scene)) {
+
+        // const gizmoManager = new GizmoManager(scene);
+        // gizmoManager.usePointerToAttachGizmos = false;
+        // // gizmoManager.positionGizmoEnabled = true;
+        // gizmoManager.rotationGizmoEnabled = true;
+        // const { utilityLayerScene } = gizmoManager.utilityLayer;
+        const utilityLayer = new UtilityLayerRenderer(scene);
+        const { utilityLayerScene } = utilityLayer;
+        new HemisphericLight("direct", new Vector3(0, 0, 1), utilityLayerScene);
+        new HemisphericLight(
+            "direct",
+            new Vector3(0, 0, -1),
+            utilityLayerScene
+        );
+
+        // const orbits = makeOrbits(celestialInfo, scene);
+        const orbits = makeKspOrbits(scene);
+        for (const { orbit, plane } of orbits) {
             makeTextBlockOn("Pe", orbit.periapsisMarker);
             makeTextBlockOn("Ap", orbit.apoapsisMarker);
         }
 
-        addSkybox(Math.hypot(CAMERA_MAX_Z, CAMERA_MAX_Z) - 1, scene);
+        // gizmoManager.attachToMesh(orbits[0].orbit.periapsisMarker);
+
+        // const gizmoMaterial = new StandardMaterial("", utilityLayerScene);
+        // gizmoMaterial.diffuseColor = Color3.Red().scale(0.5);
+        // gizmoMaterial.specularColor = gizmoMaterial.diffuseColor.subtract(
+        //     new Color3(0.1, 0.1, 0.1)
+        // );
+
+        // const arrow = CreateArrow(utilityLayerScene, gizmoMaterial);
+        // arrow.scaling.scaleInPlace(0.5);
+        // arrow.rotation.x = ToRadians(90);
+        const gizmoY = new AxisDragGizmo(
+            new Vector3(0, 1, 0),
+            Color3.Green().scale(0.5),
+            utilityLayer
+        );
+
+        gizmoY.attachedMesh = orbits[0].orbit.periapsisMarker;
+        gizmoY.updateGizmoPositionToMatchAttachedMesh = true;
+        // gizmoManager.gizmos.rotationGizmo?.xGizmo.setCustomMesh(arrow!);
+        // gizmoManager.gizmos.rotationGizmo?.xGizmo.dragBehavior.onDragObservable
+
+        addSkybox(Math.hypot(CAMERA_MAX_Z, CAMERA_MAX_Z) * 0.95, scene);
 
         return scene;
     };
 }
 
-const makeOrbits = (celestial: CelestialObjectInfo, scene: Scene) => {
-    const orbits = getOrbits();
+const makeSphereOfInfluenceCircle = (
+    orbitalInfo: CelestialObjectInfo,
+    scene: Scene
+) => {
+    const { sphereOfInfluence } = orbitalInfo;
 
+    const arc = Curve3.ArcThru3Points(
+        new Vector3(sphereOfInfluence, 0, 0),
+        new Vector3(-sphereOfInfluence, 0, 0),
+        new Vector3(0, 0, sphereOfInfluence),
+        64,
+        false,
+        true
+    );
+    const mat = new StandardMaterial("soi_circle", scene);
+    mat.diffuseColor = Color3.Red();
+    return MeshBuilder.CreateDashedLines(
+        `${orbitalInfo.name}_soi_circle`,
+        {
+            points: arc.getPoints(),
+            dashSize: 30,
+            gapSize: 50,
+            material: mat,
+        },
+        scene
+    );
+};
+
+const makeKspOrbits = (scene: Scene) => {
+    const infos = TEST_KSP_ORBITS.split("\n\n").map((l) =>
+        parseKspOrbit(l.trim())
+    );
+
+    let i = 0;
     const output: Array<{ plane: OrbitalPlane; orbit: OrbitalEllipse }> = [];
 
-    for (const o of orbits) {
+    for (const {
+        SMA: semiMajorAxis,
+        ECC: eccentricity,
+        INC: inclination,
+        LPE: argPE,
+        LAN: longitudeOfAN,
+        MNA,
+        EPH,
+        REF,
+    } of infos) {
+        const { apoapsis, periapsis } = getApoapsisAndPeriapsis(
+            eccentricity,
+            semiMajorAxis
+        );
+
         const plane = new OrbitalPlane(
-            `${o.id}_plane`,
-            o.inclination,
-            o.longitudeOfAN,
+            `${i}_plane`,
+            inclination,
+            longitudeOfAN,
             scene
         );
         const orbit = new OrbitalEllipse(
-            `${o.id}_orbit`,
-            fromKspApsis(o.apoapsis / 1000, celestial),
-            fromKspApsis(o.periapsis / 1000, celestial),
+            `${i}_orbit`,
+            apoapsis / 1000,
+            periapsis / 1000,
+            argPE,
             { steps: 180 },
             scene
         );
         orbit.parent = plane;
 
         output.push({ orbit, plane });
+        i++;
     }
 
     return output;
 };
-
-const getOrbits = () => [
-    {
-        id: "A1",
-        apoapsis: 301067.8,
-        // periapsis: 300074.6,
-        periapsis: 10 * 1000,
-        eccentricity: 0.00099,
-        inclination: 90.03778,
-        longitudeOfAN: 214.25741,
-        argPE: 115.27402,
-        trueAnomaly: -12.20135,
-    },
-    {
-        id: "A2",
-        apoapsis: 299113.1,
-        periapsis: 298332.3,
-        eccentricity: 0.00078,
-        inclination: 89.84439,
-        longitudeOfAN: 214.46113,
-        argPE: 95.54224,
-        trueAnomaly: -108.18228,
-    },
-    {
-        id: "B1",
-        apoapsis: 300107.3,
-        // periapsis: 300085.9,
-        periapsis: 50 * 1000,
-        eccentricity: 0.00002,
-        inclination: 126.32455,
-        longitudeOfAN: 124.25351,
-        argPE: 15.72386,
-        trueAnomaly: -111.48943,
-    },
-    {
-        id: "B2",
-        apoapsis: 300107.8,
-        periapsis: 300086.2,
-        eccentricity: 0.00002,
-        inclination: 126.32455,
-        longitudeOfAN: 124.25351,
-        argPE: 14.92775,
-        trueAnomaly: -106.98689,
-    },
-];
 
 export default new DefaultSceneWithTexture();

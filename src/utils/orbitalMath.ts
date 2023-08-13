@@ -27,3 +27,18 @@ export const fromKspApsis = (
 export type km = number;
 
 export const KM_TO_M = 1000;
+
+// https://www.planetary.org/articles/3380
+// R_a = a(1+e)
+// R_p = a(1-e)
+export const getApoapsisAndPeriapsis = (
+    eccentricity: number,
+    semiMajorAxis: number
+) => {
+    const a = semiMajorAxis;
+    const e = eccentricity;
+    return {
+        apoapsis: a * (1 + e),
+        periapsis: a * (1 - e),
+    };
+};
