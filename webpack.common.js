@@ -14,7 +14,7 @@ module.exports = {
         path: path.resolve("./dist/"),
     },
     resolve: {
-        extensions: [".ts", ".js"],
+        extensions: [".ts", ".js", ".tsx", ".jsx"],
         fallback: {
             fs: false,
             path: false, // require.resolve("path-browserify")
@@ -50,6 +50,10 @@ module.exports = {
                         },
                     },
                 ],
+            },
+            {
+                test: /\.css$/i,
+                use: ["style-loader", "css-loader"],
             },
         ],
     },

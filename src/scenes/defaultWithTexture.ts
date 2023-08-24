@@ -24,6 +24,7 @@ import {
 import { getApoapsisAndPeriapsis, type km } from "../utils/orbitalMath";
 import { TEST_KSP_ORBITS, parseKspOrbit } from "../utils/ksp";
 import { Orbit } from "../objects/Orbit";
+import { AppState } from "../state";
 
 const makeCelestialObjectBodyMaterial = async (
     { name, textures }: CelestialObjectInfo,
@@ -74,7 +75,8 @@ const addSkybox = (size: km, scene: Scene) => {
 export class DefaultSceneWithTexture {
     createScene = async (
         engine: Engine,
-        canvas: HTMLCanvasElement
+        canvas: HTMLCanvasElement,
+        appState: AppState
     ): Promise<Scene> => {
         const scene = new Scene(engine);
 

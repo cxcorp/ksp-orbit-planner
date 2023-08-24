@@ -3,6 +3,8 @@ import { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine";
 import sceneModule from "./scenes/defaultWithTexture";
 import "@babylonjs/core/Engines/WebGPU/Extensions/engine.uniformBuffer";
 import { SceneOptimizer, SceneOptimizerOptions } from "@babylonjs/core";
+import { renderUi } from "./ui/index";
+import { AppState } from "./state";
 
 export const babylonInit = async (): Promise<void> => {
     // Get the canvas element
@@ -22,8 +24,11 @@ export const babylonInit = async (): Promise<void> => {
         engine = new Engine(canvas, true);
     }
 
+    const appState = new AppState();
+
     // Create the scene
-    const scene = await sceneModule.createScene(engine, canvas);
+    const scene = await sceneModule.createScene(engine, canvas, appState);
+    appState.scene = scene;
 
     const optimizationOptions = SceneOptimizerOptions.LowDegradationAllowed(30);
     optimizationOptions.trackerDuration = 500;
@@ -41,8 +46,6 @@ export const babylonInit = async (): Promise<void> => {
     window.addEventListener("resize", function () {
         engine.resize();
     });
-};
 
-babylonInit().then(() => {
-    // scene started rendering, everything is initialized
-});
+    renderUi(document.getElementById("ui")!, appState);
+};
