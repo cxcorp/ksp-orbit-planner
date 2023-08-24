@@ -11,31 +11,19 @@ import {
     CreateBox,
     CubeTexture,
     HemisphericLight,
-    Mesh,
     TransformNode,
-    GizmoManager,
-    Material,
-    CreateCylinder,
-    DirectionalLight,
     UtilityLayerRenderer,
-    AxisDragGizmo,
     Curve3,
     MeshBuilder,
 } from "@babylonjs/core";
-import { OrbitalEllipse } from "../objects/OrbitalEllipse";
-import { OrbitalPlane } from "../objects/OrbitalPlane";
-import { AdvancedDynamicTexture, Rectangle, TextBlock } from "@babylonjs/gui";
+import { AdvancedDynamicTexture } from "@babylonjs/gui";
 import {
     CelestialObjectInfo,
     celestialObjects,
 } from "../objects/CelestialObjects";
-import {
-    fromKspApsis,
-    getApoapsisAndPeriapsis,
-    type km,
-} from "../utils/orbitalMath";
-import { ToRadians, sphericalToCartesian } from "../utils/trigonometry";
+import { getApoapsisAndPeriapsis, type km } from "../utils/orbitalMath";
 import { TEST_KSP_ORBITS, parseKspOrbit } from "../utils/ksp";
+import { Orbit } from "../objects/Orbit";
 
 const makeCelestialObjectBodyMaterial = async (
     { name, textures }: CelestialObjectInfo,
@@ -157,32 +145,13 @@ export class DefaultSceneWithTexture {
 
         makeSphereOfInfluenceCircle(celestialInfo, scene);
 
-        const ui = AdvancedDynamicTexture.CreateFullscreenUI(
-            "ui",
+        const gui = AdvancedDynamicTexture.CreateFullscreenUI(
+            "gui",
             true,
             scene,
             Texture.BILINEAR_SAMPLINGMODE,
             true
         );
-        const makeTextBlockOn = (text: string, mesh: Mesh) => {
-            const rect = new Rectangle();
-            rect.width = "12px";
-            rect.height = "12px";
-            rect.cornerRadius = 1;
-            rect.background = "blue";
-            rect.color = "transparent";
-
-            const label = new TextBlock();
-            label.text = text;
-            label.color = "#fff";
-            label.fontFamily = "Arial";
-            label.fontSizeInPixels = 9;
-            rect.addControl(label);
-
-            ui.addControl(rect);
-            rect.linkWithMesh(mesh);
-            rect.linkOffsetYInPixels = 12 / 2;
-        };
 
         // const gizmoManager = new GizmoManager(scene);
         // gizmoManager.usePointerToAttachGizmos = false;
@@ -199,11 +168,7 @@ export class DefaultSceneWithTexture {
         );
 
         // const orbits = makeOrbits(celestialInfo, scene);
-        const orbits = makeKspOrbits(scene);
-        for (const { orbit, plane } of orbits) {
-            makeTextBlockOn("Pe", orbit.periapsisMarker);
-            makeTextBlockOn("Ap", orbit.apoapsisMarker);
-        }
+        const orbits = makeKspOrbits(gui, scene);
 
         // gizmoManager.attachToMesh(orbits[0].orbit.periapsisMarker);
 
@@ -216,14 +181,16 @@ export class DefaultSceneWithTexture {
         // const arrow = CreateArrow(utilityLayerScene, gizmoMaterial);
         // arrow.scaling.scaleInPlace(0.5);
         // arrow.rotation.x = ToRadians(90);
-        const gizmoY = new AxisDragGizmo(
-            new Vector3(0, 1, 0),
-            Color3.Green().scale(0.5),
-            utilityLayer
-        );
 
-        gizmoY.attachedMesh = orbits[0].orbit.periapsisMarker;
-        gizmoY.updateGizmoPositionToMatchAttachedMesh = true;
+        // const gizmoY = new AxisDragGizmo(
+        //     new Vector3(0, 1, 0),
+        //     Color3.Green().scale(0.5),
+        //     utilityLayer
+        // );
+
+        // gizmoY.attachedMesh = orbits[0].orbit.periapsisMarker;
+        // gizmoY.updateGizmoPositionToMatchAttachedMesh = true;
+
         // gizmoManager.gizmos.rotationGizmo?.xGizmo.setCustomMesh(arrow!);
         // gizmoManager.gizmos.rotationGizmo?.xGizmo.dragBehavior.onDragObservable
 
@@ -261,13 +228,13 @@ const makeSphereOfInfluenceCircle = (
     );
 };
 
-const makeKspOrbits = (scene: Scene) => {
+const makeKspOrbits = (gui: AdvancedDynamicTexture, scene: Scene) => {
     const infos = TEST_KSP_ORBITS.split("\n\n").map((l) =>
         parseKspOrbit(l.trim())
     );
 
     let i = 0;
-    const output: Array<{ plane: OrbitalPlane; orbit: OrbitalEllipse }> = [];
+    const output: Orbit[] = [];
 
     for (const {
         SMA: semiMajorAxis,
@@ -284,23 +251,20 @@ const makeKspOrbits = (scene: Scene) => {
             semiMajorAxis
         );
 
-        const plane = new OrbitalPlane(
-            `${i}_plane`,
-            inclination,
-            longitudeOfAN,
+        const orbit = new Orbit(
+            `${i}`,
+            {
+                apoapsis: apoapsis / 1000,
+                periapsis: periapsis / 1000,
+                argumentOfPeriapsis: argPE,
+                inclination,
+                ascendingNodeLongitude: longitudeOfAN,
+            },
+            gui,
             scene
         );
-        const orbit = new OrbitalEllipse(
-            `${i}_orbit`,
-            apoapsis / 1000,
-            periapsis / 1000,
-            argPE,
-            { steps: 180 },
-            scene
-        );
-        orbit.parent = plane;
 
-        output.push({ orbit, plane });
+        output.push(orbit);
         i++;
     }
 
